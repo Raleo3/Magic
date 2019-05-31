@@ -101,6 +101,20 @@ class CardList extends React.Component {
             );
         });
 
+        if (this.state.cards.length > 0 && cards.length === 0) {
+            return (
+                <div className="ui placeholder segment">
+                  <div className="ui icon header">
+                    <div >
+                        <i className="close icon"></i>
+                        <i className="magic icon"></i>
+                    </div>
+                    Your spell looks a bit imprecise, please craft another.
+                  </div>
+                </div>
+            );
+        }
+
         if (cards.length === 0) {
             return (
                 <div className="ui segment show-loader">
@@ -126,7 +140,8 @@ class CardList extends React.Component {
             const cardList = document.getElementById('card-list');
 
             // If user has scrolled down >= 90% height of cardList + pageHeader + vertical margins, loadMoreCards()
-            if (cardList && !this.state.loadingCards && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 91 + 30) * .9)) {
+            // Also, we prevent infinite load if filter is active
+            if (cardList && !this.state.loadingCards && !this.props.term && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 91 + 30) * .9)) {
                 this.loadMoreCards();
             }
         };

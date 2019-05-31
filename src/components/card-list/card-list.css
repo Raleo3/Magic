@@ -20,3 +20,12 @@
 .show-loader {
     height: 100vh;
 }
+
+.ui.icon.header .icon {
+    display: inline-block;
+    margin: 0px;
+}
+
+.ui.placeholder.segment{
+    height: 80vh;
+}
