@@ -42,7 +42,7 @@ class CardList extends React.Component {
         }, 500);
     }
 
-    renderList () {
+    sortAndFilter() {
         let filteredCards = this.state.cards;
 
         // filter
@@ -77,7 +77,11 @@ class CardList extends React.Component {
             });
         }
 
-        const cards = filteredCards.map(card => {
+        return filteredCards;
+    }
+
+    renderList () {
+        const cards = this.sortAndFilter().map(card => {
             return (
                 <div key={card.id} className="ui card single-card">
                   <div className="image">
@@ -105,7 +109,7 @@ class CardList extends React.Component {
             return (
                 <div className="ui placeholder segment">
                   <div className="ui icon header">
-                    <div >
+                    <div>
                         <i className="close icon"></i>
                         <i className="magic icon"></i>
                     </div>
