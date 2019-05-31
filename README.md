@@ -1,4 +1,4 @@
-#Magic the Gathering App
+# Magic the Gathering App
 
 ## Install
 
