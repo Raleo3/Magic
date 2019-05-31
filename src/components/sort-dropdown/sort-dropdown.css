@@ -1,0 +1,7 @@
+.Dropdown-control{
+    border-radius: .28571429rem;
+}
+
+.Dropdown-menu {
+    z-index: 999999;
+}

@@ -1,0 +1,7 @@
+.ui.form {
+    width: 50%;
+}
+
+.ui.form.search {
+    margin-right: 50px;
+}
