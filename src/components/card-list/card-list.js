@@ -1,165 +1,176 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Loader from '../loader/loader';
+import Card from '../card/card';
+import MessageSegment from '../messageSegment/messageSegment';
 import { getCardsByType } from '../../api/magic/card-service';
+
 import { CREATURE } from '../../constants/type';
-import { SORT_OPTIONS } from '../../constants/sort-options';
 import './card-list.css';
 
+/**
+  * Keeping nextPage var out of component state since the component should not re-render when it changes
+  * Used for API calls only
+  */
+let nextPage = 1;
 
-class CardList extends React.Component {
-    state = {
-        cards: [],
-        cardsOnDeck: [],
-        loadingCards: false,
-        nextPage: 1
-     };
+const CardList = props => {
+    const [cards, setCards] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState(false);
 
-    async fetchCards(type) {
-        const response = await getCardsByType(this.state.nextPage, type);
-        const imageCards = response.data.cards.filter(card => card.imageUrl);
+    /**
+      * Sets the state upon successful cards API request
+      * if - cards array is empty, replace it with fetched data
+      * else - concat existing data and new data
+      *
+      * increment nextPage (to fetch) by 1 after successful cards API request
+      *
+      * @param {String} type - card type needed for targeted API request
+      */
+    const fetchCards = async (type, page) => {
+        try {
+            setLoading(true);
+            const response = await getCardsByType(page, type, 20);
 
-        this.setState(prevState => ({
-            cards: prevState.cards.length === 0 ? imageCards.slice(0, 20) : prevState.cards.concat(prevState.cardsOnDeck, imageCards.slice(0, 20 - prevState.cardsOnDeck.length)),
-            cardsOnDeck: prevState.cardsOnDeck.length === 0 ? imageCards.slice(20) : imageCards.slice(20 - prevState.cardsOnDeck.length),
-            nextPage: ++prevState.nextPage
-        }));
-    }
+            setCards(prevState => prevState.length === 0 ? response.data.cards : prevState.concat(response.data.cards));
+            nextPage = ++nextPage;
+            setLoading(false);
+        }
+        catch (err) {
+            setErrorMessage(true);
+        }
+    };
 
-    async loadMoreCards() {
-        if (this.state.cardsOnDeck >= 20){
-            this.setState(prevState => ({
-                cards: prevState.cards.concat(prevState.cardsOnDeck.slice(0, 20)),
-                cardsOnDeck: prevState.cardsOnDeck.slice(20)
-            }));
-            return;
+    /**
+      * Fetch Cards once upon Component init
+      */
+    useEffect(() => {
+        fetchCards(CREATURE, nextPage);
+    }, []);
+
+    /**
+      * Add & Remove Event Listeners upon init & destruction of component
+      */
+    useEffect(() => {
+        /**
+          * if - there isn't a searchTerm
+          * && - the content loaded is > 90% vertically scrolled through
+          * then - fetch more cards from the API
+          *
+          * @param {Object} event - default event emitted by the browser API
+          */
+        const onScroll = (e) => {
+            const cardList = document.getElementById('card-list');
+
+            if (cardList && !loading && !props.term && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 30) * .9)) {
+                fetchCards(CREATURE, nextPage);
+            };
         }
 
-        this.setState({ loadingCards: true });
-        await this.fetchCards(CREATURE);
+        window.addEventListener('scroll', onScroll);
 
-        // Temp. additional pause to allow browser to render new list before assessing scrollY position
-        window.setTimeout(() => {
-            this.setState({ loadingCards: false });
-        }, 500);
+        return () => window.removeEventListener('scroll', onScroll);
+    }, [loading, props.term]);
+
+    /**
+     *  Run basic case insensitive Regex vs. search Query
+     *
+     *  @return {Array} cards array - per regex match
+     */
+    const filterBySearchTerm = () => {
+        const regEx = new RegExp(props.term.trim(), 'i');
+        return cards.filter(card => card.name.match(regEx) !== null);
     }
 
-    sortAndFilter() {
-        let filteredCards = this.state.cards;
+    /**
+     *  Clone cards from state, alphabetical string sort according to sort selection criteria
+     *
+     *  @param {Array} cards array
+     *  @return {Array} cards array - sorted
+     */
+    const sortBySelection = (cards) => {
+        const sortType = props.sort.value;
 
-        // filter
-        if (this.props.term) {
-            const regEx = new RegExp(this.props.term.trim(), 'i');
-            filteredCards = this.state.cards.filter(card => card.name.match(regEx) !== null);
-        }
+        return cards.sort((a, b) => {
+          if (a[sortType] < b[sortType]) {
+            return -1;
+          }
 
-        // sort
-        if (this.props.sort) {
-            let sortType = this.props.sort.value;
+          if (a[sortType] > b[sortType]) {
+            return 1;
+          }
 
-            filteredCards.sort((a, b) => {
-              let one = a[sortType];
-              let two = b[sortType];
-
-              // If artist, sort by last name
-              if (sortType === SORT_OPTIONS[2].value) {
-                  one = a[sortType].split(' ').slice(-1)[0];
-                  two = b[sortType].split(' ').slice(-1)[0];
-              }
-
-              if (one < two) {
-                return -1;
-              }
-
-              if (one > two) {
-                return 1;
-              }
-
-              return 0;
-            });
-        }
-
-        return filteredCards;
+          return 0;
+        });
     }
 
-    renderList () {
-        const cards = this.sortAndFilter().map(card => {
+    /**
+     *  If necessary, run filter & sort functions
+     *
+     *  @return {Array} cards array
+     */
+    const filterAndSortCards = () => {
+        const { term, sort } = props;
+        let cardsForDisplay = [...cards];
+
+        if (term) {
+            cardsForDisplay = filterBySearchTerm();
+        }
+
+        if (sort) {
+            cardsForDisplay = sortBySelection(cardsForDisplay);
+        }
+
+        return cardsForDisplay;
+    }
+
+    /**
+     *  Render appropriate JSX
+     *
+     *  if - state does not contains cards (i.e cards are being fetched from the API)
+     *  @return {Object} Loader Component
+     *
+     *
+     *  if - state contains cards (i.e cards have successfully been fetched from the API)
+     *  && there are no cards to render (due to our searchTerm)
+     *  @return {Object} MessageSegment Component
+     *
+     *  else -
+     *  @return {Object} list of Card Component
+     */
+    const renderList = () => {
+        const cardsToRender = filterAndSortCards().map(card => {
             return (
-                <div key={card.id} className="ui card single-card">
-                  <div className="image">
-                    <img alt={card.name} src={card.imageUrl} />
-                  </div>
-                  <div className="content">
-                    <h3 className="header">{card.name}</h3>
-                    <div className="description">
-                        <div className="set-name">
-                          Set: {card.setName}
-                        </div>
-                        <div className="original-type">
-                          Original Type: {card.originalType}
-                        </div>
-                    </div>
-                  </div>
-                  <div className="extra content">
-                    <span>Artist: {card.artist}</span>
-                  </div>
+                <div key={card.id + Math.random()}>
+                    <Card card={card} />
                 </div>
             );
         });
 
-        if (this.state.cards.length > 0 && cards.length === 0) {
-            return (
-                <div className="ui placeholder segment">
-                  <div className="ui icon header">
-                    <div>
-                        <i className="close icon"></i>
-                        <i className="magic icon"></i>
-                    </div>
-                    Your spell looks a bit imprecise, please craft another.
-                  </div>
-                </div>
-            );
+        if (cards.length === 0 && !errorMessage) {
+            return <Loader loadingMessage='Preparing Magic...' />;
         }
 
-        if (cards.length === 0) {
-            return (
-                <div className="ui segment show-loader">
-                  <div className="ui active inverted dimmer">
-                    <div className="ui large text loader">Preparing Magic</div>
-                  </div>
-                  <p></p>
-                  <p></p>
-                  <p></p>
-                </div>
-            );
+        if (cards.length === 0 && errorMessage) {
+            return <MessageSegment messageText="We are having technical problems, please try again."/>
+        }
+
+        if (cards.length > 0 && cardsToRender.length === 0) {
+            return <MessageSegment messageText="Your spell looks a bit imprecise, please craft again."/>
         }
 
         return (
             <div id="card-list">
-                {cards}
+                {cardsToRender}
             </div>
         );
     }
 
-    componentDidMount() {
-        window.onscroll = (ev) => {
-            const cardList = document.getElementById('card-list');
-
-            // If user has scrolled down >= 90% height of cardList + pageHeader + vertical margins, loadMoreCards()
-            // Also, we prevent infinite load if filter is active
-            if (cardList && !this.state.loadingCards && !this.props.term && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 91 + 30) * .9)) {
-                this.loadMoreCards();
-            }
-        };
-
-        this.fetchCards(CREATURE);
-    }
-
-    render () {
-        return (
-            <div>
-                {this.renderList()}
-            </div>
-        );
-    }
+    return (
+        <div>
+            {renderList()}
+        </div>
+    );
 }
 
 export default CardList;
