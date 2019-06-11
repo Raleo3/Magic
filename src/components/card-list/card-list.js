@@ -8,14 +8,13 @@ import { CREATURE } from '../../constants/type';
 import './card-list.css';
 
 /**
-  * Keeping nextPage var out of component state since the component should not re-render when it changes
-  * Used for API calls only
+  * nextPage variable is kept out of state since it only has API implications and should never trigger a view re-render
   */
 let nextPage = 1;
 
 const CardList = props => {
     const [cards, setCards] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loadMore, setLoadMore] = useState(false);
     const [errorMessage, setErrorMessage] = useState(false);
 
     /**
@@ -23,18 +22,19 @@ const CardList = props => {
       * if - cards array is empty, replace it with fetched data
       * else - concat existing data and new data
       *
-      * increment nextPage (to fetch) by 1 after successful cards API request
+      * Increment nextPage (to fetch) by 1 after successful cards API request
+      *
+      * Trigger loading error if API call breaks/times out
       *
       * @param {String} type - card type needed for targeted API request
       */
     const fetchCards = async (type, page) => {
         try {
-            setLoading(true);
             const response = await getCardsByType(page, type, 20);
 
             setCards(prevState => prevState.length === 0 ? response.data.cards : prevState.concat(response.data.cards));
+            setLoadMore(false);
             nextPage = ++nextPage;
-            setLoading(false);
         }
         catch (err) {
             setErrorMessage(true);
@@ -55,22 +55,31 @@ const CardList = props => {
         /**
           * if - there isn't a searchTerm
           * && - the content loaded is > 90% vertically scrolled through
-          * then - fetch more cards from the API
+          * then - trigger fetchCards API call
           *
           * @param {Object} event - default event emitted by the browser API
           */
         const onScroll = (e) => {
             const cardList = document.getElementById('card-list');
 
-            if (cardList && !loading && !props.term && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 30) * .9)) {
-                fetchCards(CREATURE, nextPage);
+            if (cardList && !props.term && (document.body.offsetHeight + window.pageYOffset > (cardList.offsetHeight + 30) * .9)) {
+                setLoadMore(true);
             };
         }
 
         window.addEventListener('scroll', onScroll);
 
         return () => window.removeEventListener('scroll', onScroll);
-    }, [loading, props.term]);
+    }, [props.term]);
+
+    /**
+      * Fetch Cards on loadMore boolean trigger
+      */
+    useEffect(() => {
+        if (loadMore) {
+            fetchCards(CREATURE, nextPage);
+        }
+    }, [loadMore]);
 
     /**
      *  Run basic case insensitive Regex vs. search Query
